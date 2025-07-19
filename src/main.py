@@ -28,6 +28,7 @@ async def store_order_book(symbol: str, saving_method: config.OrderBookSavingMet
             saving_method=saving_method,
         ),
         file_handler.writer_task(symbol, orderbook_updates_queue),
+        file_handler.zip_worker(),
     )
 
 
