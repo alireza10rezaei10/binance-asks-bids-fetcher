@@ -9,7 +9,7 @@ import data_processors
 
 QueueType = asyncio.Queue[dict[str, object]]
 
-logger = logging.getLogger("OrderBookLogger")
+logger = logging.getLogger(__name__)
 
 
 async def get_snapshot(symbol: str) -> dict[str, Any]:
@@ -20,12 +20,12 @@ async def get_snapshot(symbol: str) -> dict[str, Any]:
                 if response.status == 200:
                     data = await response.json()
                     logger.info(
-                        f"[Fetcher:{symbol}] Successfully fetched snapshot for {symbol}."
+                        f"[SnapshotFetcher:{symbol}] Successfully fetched snapshot."
                     )
                     return data
                 else:
                     logger.error(
-                        f"Failed to fetch snapshot for {symbol}, with status code: {response.status} retrying in 1 second..."
+                        f"[SnapshotFetcher:{symbol}] Failed to fetch snapshot, with status code: {response.status} retrying in 1 second..."
                     )
                     await asyncio.sleep(1)
 
@@ -57,7 +57,7 @@ async def put_orderbook_updates_to_the_queue(
         if orderbook_is_not_usable(new_data=new_data, orderbook=orderbook):
             while orderbook_is_not_usable(new_data=new_data, orderbook=orderbook):
                 logger.info(
-                    f"[WebSocket:{symbol}] orderbook is not found or too old... trying to get new one..."
+                    f"[Orderbook:{symbol}] orderbook is not found or too old... trying to get new one..."
                 )
                 orderbook: dict[str, Any] = await get_snapshot(symbol)
 

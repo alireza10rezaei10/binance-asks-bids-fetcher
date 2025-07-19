@@ -3,3 +3,4 @@ aiohttp==3.12.14
 websockets==15.0.1
 uvloop==0.21.0
 ujson==5.10.0
+python-dotenv==1.1.1

@@ -7,7 +7,6 @@ def update_orderbook(
     # get copy to prevent changing orderbooks in queue
     new_orderbook = orderbook.copy()
 
-    # new_orderbook["symbol"] = new_data["s"]
     new_orderbook["time"] = new_data["E"]
     new_orderbook["lastUpdateId"] = new_data["u"]
 
@@ -22,10 +21,6 @@ def update_orderbook(
                 book.pop(price_str, None)
             else:
                 book[price_str] = qty_str
-
-        # # Rebuild sorted list for order book
-        # reverse = side == "bids"  # bids are sorted high to low, asks low to high
-        # self.order_book[side] = sorted(book.items(), reverse=reverse)
 
         new_orderbook[side] = list(book.items())
 

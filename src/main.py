@@ -2,11 +2,13 @@ import asyncio
 import uvloop
 import websocket_handler
 import config
+import logging
 import logger_config
 import file_handler
 
 
-logger = logger_config.setup_logger()
+logger_config.setup_logger()
+logger = logging.getLogger(__name__)
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
@@ -34,6 +36,8 @@ async def main() -> None:
         store_order_book(symbol, saving_method=config.ORDERBOOK_SAVING_METHOD)
         for symbol in config.SYMBOLS
     ]
+    tasks.append(logger_config.telegram_log_sender())
+
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError as ce:
