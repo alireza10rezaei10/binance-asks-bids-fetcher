@@ -43,31 +43,30 @@ async def send_document_from_disk(chat_id: str, file_path: str, caption: str = "
 
     try:
         form = aiohttp.FormData()
-
         form.add_field("chat_id", chat_id)
 
         if caption:
             form.add_field("caption", caption)
 
-        with open(file_path, "rb") as file:
-            form.add_field(
-                "document",
-                file,
-                filename=os.path.basename(file_path),
-                content_type="application/octet-stream",
-            )
-
         async with aiohttp.ClientSession() as session:
-            async with session.post(Urls.SEND_DOCUMENT, data=form) as response:
-                if response.status == 200:
-                    logger.info(
-                        f"[SendDocument] File: {file_path} sent to telegram channel."
-                    )
-                else:
-                    error = await response.json()
-                    logger.error(
-                        f"[SendDocument] File: {file_path} could not send to telegram channel. {error}"
-                    )
+            with open(file_path, "rb") as file:
+                form.add_field(
+                    "document",
+                    file,
+                    filename=os.path.basename(file_path),
+                    content_type="application/octet-stream",
+                )
 
+                async with session.post(Urls.SEND_DOCUMENT, data=form) as response:
+                    if response.status == 200:
+                        logger.info(
+                            f"[SendDocument] File: {file_path} sent to telegram channel."
+                        )
+                        return True
+                    else:
+                        error = await response.json()
+                        logger.error(
+                            f"[SendDocument] File: {file_path} could not send to telegram channel. {error}"
+                        )
     except Exception as e:
         logger.error(f"[SendDocument] Error: {e}")

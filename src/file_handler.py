@@ -6,6 +6,7 @@ import logging
 import asyncio
 import config
 import zipfile
+import telegram
 
 os.makedirs(config.SAVE_DIR, exist_ok=True)
 
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 current_files: dict[
     tuple[str, datetime], aiofiles.threadpool.text.AsyncTextIOWrapper
 ] = {}
+
+zip_queue: asyncio.Queue[tuple[str, datetime]] = asyncio.Queue()
 
 QueueType = asyncio.Queue[dict[str, object]]
 
@@ -26,6 +29,57 @@ def get_hour_key(dt: datetime) -> datetime:
     return dt.replace(minute=0, second=0, microsecond=0)
 
 
+def split_and_zip_file(input_path: str, output_zip_base: str) -> list[str]:
+    part_paths: list[str] = []
+    part_index: int = 1
+    with open(input_path, "rb") as f:
+        while True:
+            chunk = f.read(config.MAX_ZIP_SIZE_BYTES)
+            if not chunk:
+                break
+            part_zip_path = f"{output_zip_base}.part{part_index}.zip"
+            with zipfile.ZipFile(
+                part_zip_path, "w", compression=zipfile.ZIP_DEFLATED
+            ) as zf:
+                zf.writestr(os.path.basename(input_path), chunk)
+            part_paths.append(part_zip_path)
+            part_index += 1
+    return part_paths
+
+
+async def zip_worker():
+    while True:
+        try:
+            symbol, dt = await zip_queue.get()
+            input_path = get_filename_for_hour(symbol, dt)
+            zip_base_path = input_path.replace(".jsonl", "")
+
+            part_paths = await asyncio.to_thread(
+                split_and_zip_file, input_path, zip_base_path
+            )
+            logger.info(f"[Zipper:{symbol}] Created {len(part_paths)} zip parts.")
+
+            for i, part_path in enumerate(part_paths):
+                caption = f"{symbol} | {dt} | Part {i + 1}/{len(part_paths)}"
+                is_sent: bool | None = await telegram.send_document_from_disk(
+                    chat_id=config.TELEGRAM_CHANNEL_CHAT_ID,
+                    file_path=part_path,
+                    caption=caption,
+                )
+                if is_sent:
+                    os.remove(part_path)
+                    logger.info(f"[Zipper:{symbol}] Removed part file: {part_path}")
+                else:
+                    logger.warning(f"[Zipper:{symbol}] Failed to send: {part_path}")
+                await asyncio.sleep(2)
+
+            os.remove(input_path)
+            logger.info(f"[Zipper:{symbol}] Removed original file: {input_path}")
+
+        except Exception as e:
+            logger.warning(f"[Zipper] Exception: {e}")
+
+
 async def write_batch_to_file(symbol: str, batch: list[dict[str, object]]) -> None:
     now = get_hour_key(datetime.now(timezone.utc))
     file_key = (symbol, now)
@@ -36,18 +90,7 @@ async def write_batch_to_file(symbol: str, batch: list[dict[str, object]]) -> No
                 await f.close()
                 logger.info(f"[Writer:{symbol}] Closed file for {key[1]}")
 
-                # Zip the file
-                input_path = get_filename_for_hour(symbol, key[1])
-                output_zip_path = input_path + ".zip"
-                try:
-                    zip_single_file(input_path, output_zip_path)
-                    logger.info(f"[Writer:{symbol}] Zipped file: {output_zip_path}")
-                    os.remove(input_path)
-                    logger.info(
-                        f"[Writer:{symbol}] Removed original file: {input_path}"
-                    )
-                except Exception as e:
-                    logger.warning(f"[Writer:{symbol}] Failed to remove file: {e}")
+                await zip_queue.put((symbol, key[1]))
 
                 del current_files[key]
 
@@ -82,11 +125,6 @@ async def writer_task(symbol: str, queue: QueueType) -> None:
                 await write_batch_to_file(symbol, batch)
             except Exception as e:
                 logger.error(f"[Writer:{symbol}] Error writing batch: {e}")
-
-
-def zip_single_file(input_path: str, output_zip_path: str):
-    with zipfile.ZipFile(output_zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(input_path, arcname=input_path.split("/")[-1])
 
 
 async def close_all_files() -> None:
