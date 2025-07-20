@@ -13,7 +13,7 @@ async def telegram_log_sender():
         message = await telegram_log_queue.get()
 
         await telegram.send_message(
-            chat_id=config.TELEGRAM_CHANNEL_CHAT_ID, text=message
+            chat_id=config.TELEGRAM_LOGGER_CHAT_ID, text=message
         )
         await asyncio.sleep(2)
 
