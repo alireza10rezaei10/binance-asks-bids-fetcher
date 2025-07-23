@@ -22,6 +22,7 @@ class TelegramLogHandler(logging.Handler):
     def __init__(self, chat_id: str):
         super().__init__()
         self.chat_id: str = chat_id
+        self.setLevel(logging.WARNING)  # فقط WARNING به بالا رو بفرست
 
     def emit(self, record: logging.LogRecord):
         if record.name == "telegram" and "SendMessage" in record.getMessage():
